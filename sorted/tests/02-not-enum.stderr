@@ -1,5 +1,10 @@
-error: expected enum or match expression
+error: sorted is for enums only
+help: you applied the #[sorted] attribute here
+help: consider removing #[sorted] or refactoring into a struct
+help: #[check] can be applied to functions to allow #[sorted] for match expressions
   --> $DIR/02-not-enum.rs:31:1
    |
 31 | #[sorted]
    | ^^^^^^^^^
+   |
+   = note: this error originates in an attribute macro (in Nightly builds, run with -Z macro-backtrace for more info)

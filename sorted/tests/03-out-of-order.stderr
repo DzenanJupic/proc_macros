@@ -1,4 +1,4 @@
-error: SomethingFailed should sort before ThatFailed
+error: SomethingFailed should sort before ThisFailed
   --> $DIR/03-out-of-order.rs:20:5
    |
 20 |     SomethingFailed,
