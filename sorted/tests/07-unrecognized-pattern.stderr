@@ -1,6 +1,6 @@
 error: unsupported match arm pattern
- help: #[sorted] can just be applied to match statements that mach enum variants
+help: #[sorted] can just be applied to match statements that mach enum variants
   --> $DIR/07-unrecognized-pattern.rs:12:9
    |
 12 |         [] => Some(0),
-   |         ^^
+   |         ^^^^^^^^^^^^^^

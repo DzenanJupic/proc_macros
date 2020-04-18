@@ -2,24 +2,25 @@ extern crate proc_macro;
 
 use proc_macro::TokenStream;
 
-use proc_macro2;
-use syn::{self, Item, parse_macro_input};
+use proc_macro2::{self, TokenStream as TokenStream2};
+use syn::{self, Ident, Item, parse_macro_input};
 use syn::spanned::Spanned;
 use syn::visit_mut::{self, VisitMut};
 
 use quote::quote;
 
-fn mk_error<D: std::fmt::Display>(span: proc_macro2::Span, msg: D) -> proc_macro2::TokenStream {
+fn mk_error<D: std::fmt::Display>(span: proc_macro2::Span, msg: D) -> TokenStream2 {
     syn::Error::new(span, msg).to_compile_error()
 }
 
 struct FsnSorted {
-    error: Option<proc_macro2::TokenStream>
+    error: Option<TokenStream2>
 }
 
 impl VisitMut for FsnSorted {
     fn visit_expr_match_mut(&mut self, node: &mut syn::ExprMatch) {
         let mut sorted: Option<usize> = None;
+
         for (i, attr) in node.attrs.iter().enumerate() {
             if attr.path.is_ident("sorted") {
                 sorted = Some(i);
@@ -39,88 +40,49 @@ impl VisitMut for FsnSorted {
     }
 }
 
-// TODO: merge the logic of variant_order_is_correct and match_arm_order_is_correct
-fn match_arm_order_is_correct(arms: &Vec<syn::Arm>) -> Result<(), proc_macro2::TokenStream> {
-    let mut arm_iter = arms.iter();
-    let first = arm_iter.next();
-    let unsupported_pattern = |span: proc_macro2::Span| mk_error(span, "unsupported match arm pattern\
-    \n help: #[sorted] can just be applied to match statements that mach enum variants");
+fn match_arm_order_is_correct(arms: &Vec<syn::Arm>) -> Result<(), TokenStream2> {
+    let mut arms_iter = arms.iter();
+    let mut ident_vec: Vec<Ident> = Vec::new();
 
-    let prev_ident;
-
-    match first {
-        Some(syn::Arm { pat: syn::Pat::TupleStruct(syn::PatTupleStruct { path, .. }), .. }) => {
-            prev_ident = &path
-                .segments
-                .iter()
-                .last()
-                .unwrap()
-                .ident;
-        }
-        Some(syn::Arm { pat: syn::Pat::Ident(syn::PatIdent { ident, .. }), .. }) => prev_ident = ident,
-        Some(syn::Arm { pat: syn::Pat::Wild(wild), ..}) => {
-            return if arm_iter.clone().next().is_some() {
-                let error = mk_error(wild.span(), "_ should be at last position");
-                Err(error)
-            } else {
-                Ok(())
-            }
-        }
-        Some(arm) => return Err(unsupported_pattern(arm.pat.span())),
-        None => unreachable!()
-    }
-
-    let ref mut prev_ident = prev_ident.to_string();
-    let mut cur_ident;
-
-    while let Some(arm) = &arm_iter.next() {
-        match arm {
-            syn::Arm { pat: syn::Pat::TupleStruct(syn::PatTupleStruct { path, .. }), .. } => {
-                cur_ident =
-                    &path
-                        .segments
-                        .iter()
-                        .last()
-                        .unwrap()
-                        .ident;
-            }
-            syn::Arm { pat: syn::Pat::Ident(syn::PatIdent { ident, .. }), .. } => cur_ident = ident,
-            syn::Arm { pat: syn::Pat::Wild(wild), ..} => {
-                return if arm_iter.clone().next().is_some() {
+    while let Some(arm) = arms_iter.next() {
+        let ident = match arm {
+            syn::Arm { pat: syn::Pat::TupleStruct(syn::PatTupleStruct { path, .. }), .. } => path.segments.last().unwrap().ident.clone(),
+            syn::Arm { pat: syn::Pat::Ident(syn::PatIdent { ident, .. }), .. } => ident.clone(),
+            syn::Arm { pat: syn::Pat::Wild(wild), .. } => {
+                if arms_iter.clone().next().is_some() {
                     let error = mk_error(wild.span(), "_ should be at last position");
-                    Err(error)
-                } else {
-                    Ok(())
+                    return Err(error);
                 }
-            }
-            arm => {eprintln!("PATTERN: {:#?}", arm.pat);return Err(unsupported_pattern(arm.pat.span()))},
-        }
-
-        let cur_ident_str = (*cur_ident).to_string();
-
-        if cur_ident_str < *prev_ident {
-            let error = mk_error(cur_ident.span(), format!("{} should sort before {}", cur_ident_str, prev_ident));
-            return Err(error);
-        }
-
-        *prev_ident = cur_ident_str;
+                continue;
+            },
+            arm => return Err(mk_error(arm.span(), "unsupported match arm pattern\nhelp: #[sorted] can just be applied to match statements that mach enum variants"))
+        };
+        ident_vec.push(ident);
     }
 
-    Ok(())
+    idents_in_order(ident_vec.into_iter())
 }
 
-fn variant_order_is_correct(item_enum: &syn::ItemEnum) -> Result<(), proc_macro2::TokenStream> {
-    let mut variant_iter = item_enum.variants.iter();
+fn variant_order_is_correct(item_enum: &syn::ItemEnum) -> Result<(), TokenStream2> {
+    let ident_iter = item_enum.variants
+        .iter()
+        .map(|variant| variant.ident.clone());
 
-    if let Some(first) = variant_iter.next() {
-        let ref mut prev_ident = first.ident.to_string();
-        let mut cur_ident;
+    idents_in_order(ident_iter)
+}
 
-        for variant in variant_iter {
-            cur_ident = variant.ident.to_string();
+fn idents_in_order<I: Iterator<Item=Ident>>(mut idents: I) -> Result<(), TokenStream2> {
+    if let Some(mut first) = idents.next() {
+        let ref mut prev_ident = first;
+        let mut cur_ident: Ident;
 
-            if cur_ident < *prev_ident {
-                let error = mk_error(variant.ident.span(), format!("{} should sort before {}", cur_ident, prev_ident));
+        for ident in idents {
+            cur_ident = ident;
+            let cur_ident_str = cur_ident.to_string();
+            let prev_ident_str = (*prev_ident).to_string();
+
+            if cur_ident_str < prev_ident_str {
+                let error = mk_error(cur_ident.span(), format!("{} should sort before {}", cur_ident_str, prev_ident_str));
                 return Err(error);
             }
 
@@ -134,7 +96,7 @@ fn variant_order_is_correct(item_enum: &syn::ItemEnum) -> Result<(), proc_macro2
 
 #[proc_macro_attribute]
 pub fn sorted(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = proc_macro2::TokenStream::from(args);
+    let args = TokenStream2::from(args);
     let input = parse_macro_input!(input as Item);
 
     if let Item::Enum(ref item_enum) = input {
@@ -149,12 +111,12 @@ pub fn sorted(args: TokenStream, input: TokenStream) -> TokenStream {
     };
 
 // return the input without any changes
-    (quote! { # input }).into()
+    (quote! { #input }).into()
 }
 
 #[proc_macro_attribute]
 pub fn check(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args = proc_macro2::TokenStream::from(args);
+    let args = TokenStream2::from(args);
     let mut input = parse_macro_input!(input as Item);
 
     if let Item::Fn(ref mut item_fn) = input {
@@ -162,8 +124,7 @@ pub fn check(args: TokenStream, input: TokenStream) -> TokenStream {
         fn_sorted.visit_item_fn_mut(item_fn);
 
         if let Some(error) = fn_sorted.error {
-// let input = input.to_token_stream();
-            return (quote! { # input # error }).into();
+            return (quote! { #input #error }).into();
         }
     } else {
         return mk_error(args.span(), "check is for functions only\
@@ -174,5 +135,5 @@ pub fn check(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 
 // return the input without any changes
-    (quote! { # input }).into()
+    (quote! { #input }).into()
 }
