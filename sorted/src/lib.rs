@@ -9,15 +9,28 @@ use syn::visit_mut::{self, VisitMut};
 
 use quote::quote;
 
+/// creates a syn::Error from a span and a message
 fn mk_error<D: std::fmt::Display>(span: proc_macro2::Span, msg: D) -> TokenStream2 {
     syn::Error::new(span, msg).to_compile_error()
 }
 
+/// used to implements VisitMut for
+/// this trait can hold an error that otherwise could not be returned from VisitMut
 struct FsnSorted {
     error: Option<TokenStream2>
 }
 
+/// implementation of VisitMut for  FnSorted
+/// This is necessary to be able to walk a Syntax tree recursively and find all the match
+/// expressions if function with the `#[check]` attribute
 impl VisitMut for FsnSorted {
+    /// gets called, if a match expression is found.
+    /// This function has the task to remove the `#[sorted]` attribute of every match expression
+    /// cause attributes are not allowed for match expressions currently.
+    /// If a `#[sorted]` attribute was found and removes this function checks, that the order
+    /// of the match arms is correct
+    /// If the order is not correct or an arm has a unknown pattern (not a enum variant or _)
+    /// the error value of FnSorted is set. [`match_arm_order_is_correct`] is used for this.
     fn visit_expr_match_mut(&mut self, node: &mut syn::ExprMatch) {
         let mut sorted: Option<usize> = None;
 
@@ -40,6 +53,11 @@ impl VisitMut for FsnSorted {
     }
 }
 
+/// checks that match arms are in right order
+/// gets a vector of syn::Arm's and creates a iterator over the syn::Ident's of these arms
+/// This Iterator is then handed to [`idents_in_order`] to check the order.
+/// If the order is not correct or an arm has a unknown pattern (not a enum variant or _)
+/// a error is returned
 fn match_arm_order_is_correct(arms: &Vec<syn::Arm>) -> Result<(), TokenStream2> {
     let mut arms_iter = arms.iter();
     let mut ident_vec: Vec<Ident> = Vec::new();
@@ -63,6 +81,10 @@ fn match_arm_order_is_correct(arms: &Vec<syn::Arm>) -> Result<(), TokenStream2> 
     idents_in_order(ident_vec.into_iter())
 }
 
+/// checks that the order of enum variants is alphabetical
+/// takes a ItemEnum and creates an iterator over the idents of the individual variants
+/// This Iterator is then handed to [`idents_in_order`] to check the order.
+/// If the order is not correct a error is returned
 fn variant_order_is_correct(item_enum: &syn::ItemEnum) -> Result<(), TokenStream2> {
     let ident_iter = item_enum.variants
         .iter()
@@ -71,6 +93,8 @@ fn variant_order_is_correct(item_enum: &syn::ItemEnum) -> Result<(), TokenStream
     idents_in_order(ident_iter)
 }
 
+/// takes an iterator over idents and checks that these idents are in alphabetical order
+/// If that's not the case a error is returned
 fn idents_in_order<I: Iterator<Item=Ident>>(mut idents: I) -> Result<(), TokenStream2> {
     if let Some(mut first) = idents.next() {
         let ref mut prev_ident = first;
@@ -93,7 +117,39 @@ fn idents_in_order<I: Iterator<Item=Ident>>(mut idents: I) -> Result<(), TokenSt
     Ok(())
 }
 
-
+/// a macro to make sure enum variants stay in alphabetical order
+/// This is particular useful when working with big teams or when the source code is  public.
+/// Since it's a macro and expansion takes place at compile time there is no run time cost
+/// for this macro. All the work happens at compile time and the source code is not modified at all.
+///
+/// This attribute can also be applied to match expressions. Since attributes for match expressions
+/// are currently not allowed in rust, the function the match expression is contained in needs to
+/// have a [`#[check]`] attribute. Look at [`check`] for more information.
+///
+/// # Example
+///
+/// This will compile:
+/// ```
+///#   use sorted::sorted;
+///
+///    #[sorted]
+///    enum E {
+///        A,
+///        B,
+///        C
+///    }
+/// ```
+/// This won't
+/// ``` compile_fail
+///#   use sorted::sorted;
+///
+///    #[sorted]
+///    enum E {
+///        C,
+///        B,
+///        A
+///    }
+/// ```
 #[proc_macro_attribute]
 pub fn sorted(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = TokenStream2::from(args);
@@ -114,6 +170,36 @@ pub fn sorted(args: TokenStream, input: TokenStream) -> TokenStream {
     (quote! { #input }).into()
 }
 
+/// a attribute that can be applied to functions
+/// This attribute does not affect the function it self at all. It just provides the possibility
+/// to apply [`#[sorted]`] attributes to match expressions.
+/// Since attributes currently are not allowed in rust, this attribute takes care to remove
+/// these attributes before the compiler complains
+///
+/// # Example
+///
+/// ```
+///#   use sorted::*;
+///
+///    #[sorted]
+///    enum E {
+///        A,
+///        B,
+///        C
+///    }
+///
+///    #[check]
+///    fn f() {
+///        let e = E::A;
+///
+///        #[sorted]       // < would usually cause a compile error
+///        match e {
+///            E::A => (),
+///            E::B => (),
+///            E::C => (),
+///        }
+///    }
+/// ```
 #[proc_macro_attribute]
 pub fn check(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = TokenStream2::from(args);
@@ -134,6 +220,6 @@ pub fn check(args: TokenStream, input: TokenStream) -> TokenStream {
         \nhelp: #[sorted] can be applied to match expression inside functions with the #[check] attribute").into();
     }
 
-// return the input without any changes
+    // return the input without any changes
     (quote! { #input }).into()
 }
