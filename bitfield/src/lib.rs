@@ -11,5 +11,17 @@
 // From the perspective of a user of this crate, they get all the necessary APIs
 // (macro, trait, struct) through the one bitfield crate.
 pub use bitfield_impl::bitfield;
+use seq_macro::seq;
 
-// TODO other things
+pub trait Specifier {
+    const BITS: u8;
+}
+
+seq!(N in 1..=64 {
+    pub enum B#N {}
+    impl Specifier for B#N {
+        const BITS: u8 = N;
+    }
+});
+
+
