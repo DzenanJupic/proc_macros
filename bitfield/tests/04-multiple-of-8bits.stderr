@@ -1,5 +1,9 @@
-error[E0277]: the trait bound `bitfield::checks::SevenMod8: bitfield::checks::TotalSizeIsMultipleOfEightBits` is not satisfied
+error[E0512]: cannot transmute between types of different sizes, or dependently-sized types
   --> $DIR/04-multiple-of-8bits.rs:53:1
    |
 53 | #[bitfield]
-   | ^^^^^^^^^^^ the trait `bitfield::checks::TotalSizeIsMultipleOfEightBits` is not implemented for `bitfield::checks::SevenMod8`
+   | ^^^^^^^^^^^
+   |
+   = note: source type: `()` (0 bits)
+   = note: target type: `[u8; 7]` (56 bits)
+   = note: this error originates in an attribute macro (in Nightly builds, run with -Z macro-backtrace for more info)
