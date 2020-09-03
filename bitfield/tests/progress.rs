@@ -17,15 +17,24 @@ fn tests() {
 
 use bitfield::*;
 
-type A = B1;
-type B = B3;
-type C = B4;
-type D = B24;
-
 #[bitfield]
 pub struct MyFourBytes {
-    a: A,
-    b: B,
-    c: C,
-    d: D,
+    a: B1,
+    b: B3,
+    c: B4,
+    d: B24,
+}
+
+fn main() {
+    let mut bitfield = MyFourBytes::new();
+    assert_eq!(0, bitfield.get_a());
+    assert_eq!(0, bitfield.get_b());
+    assert_eq!(0, bitfield.get_c());
+    assert_eq!(0, bitfield.get_d());
+
+    bitfield.set_c(14);
+    assert_eq!(0, bitfield.get_a());
+    assert_eq!(0, bitfield.get_b());
+    assert_eq!(14, bitfield.get_c());
+    assert_eq!(0, bitfield.get_d());
 }

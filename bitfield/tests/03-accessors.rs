@@ -40,4 +40,46 @@ fn main() {
     assert_eq!(0, bitfield.get_b());
     assert_eq!(14, bitfield.get_c());
     assert_eq!(0, bitfield.get_d());
+
+    bitfield.set_a(1);
+    assert_eq!(1, bitfield.get_a(), "a");
+    assert_eq!(0, bitfield.get_b());
+    assert_eq!(14, bitfield.get_c());
+    assert_eq!(0, bitfield.get_d());
+
+    bitfield.set_b(4);
+    assert_eq!(1, bitfield.get_a());
+    assert_eq!(4, bitfield.get_b());
+    assert_eq!(14, bitfield.get_c());
+    assert_eq!(0, bitfield.get_d());
+
+    bitfield.set_d(100);
+    assert_eq!(1, bitfield.get_a());
+    assert_eq!(4, bitfield.get_b());
+    assert_eq!(14, bitfield.get_c());
+    assert_eq!(100, bitfield.get_d());
+
+    bitfield.set_a(0);
+    assert_eq!(0, bitfield.get_a());
+    assert_eq!(4, bitfield.get_b());
+    assert_eq!(14, bitfield.get_c());
+    assert_eq!(100, bitfield.get_d());
+
+    bitfield.set_b(0);
+    assert_eq!(0, bitfield.get_a());
+    assert_eq!(0, bitfield.get_b());
+    assert_eq!(14, bitfield.get_c());
+    assert_eq!(100, bitfield.get_d());
+
+    bitfield.set_c(0);
+    assert_eq!(0, bitfield.get_a());
+    assert_eq!(0, bitfield.get_b());
+    assert_eq!(0, bitfield.get_c());
+    assert_eq!(100, bitfield.get_d());
+
+    bitfield.set_d(0);
+    assert_eq!(0, bitfield.get_a());
+    assert_eq!(0, bitfield.get_b());
+    assert_eq!(0, bitfield.get_c());
+    assert_eq!(0, bitfield.get_d());
 }

@@ -14,14 +14,40 @@ pub use bitfield_impl::bitfield;
 use seq_macro::seq;
 
 pub trait Specifier {
+    type UINT;
     const BITS: u8;
+    const BYTES: u8;
 }
 
-seq!(N in 1..=64 {
+seq!(N in 1..=8 {
     pub enum B#N {}
     impl Specifier for B#N {
+        type UINT = u8;
         const BITS: u8 = N;
+        const BYTES: u8 = 1;
     }
 });
-
-
+seq!(N in 9..=16 {
+    pub enum B#N {}
+    impl Specifier for B#N {
+        type UINT = u16;
+        const BITS: u8 = N;
+        const BYTES: u8 = 2;
+    }
+});
+seq!(N in 17..=32 {
+    pub enum B#N {}
+    impl Specifier for B#N {
+        type UINT = u32;
+        const BITS: u8 = N;
+        const BYTES: u8 = 4;
+    }
+});
+seq!(N in 33..=64 {
+    pub enum B#N {}
+    impl Specifier for B#N {
+        type UINT = u64;
+        const BITS: u8 = N;
+        const BYTES: u8 = 8;
+    }
+});
